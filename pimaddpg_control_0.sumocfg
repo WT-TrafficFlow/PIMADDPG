@@ -1,0 +1,2 @@
+<?xml version='1.0' encoding='utf-8'?>
+<configuration><input><net-file value="network/gutian.xml" /><route-files value="demand/no_control_demand_0.xml" /><additional-files value="detector/addition.add.xml, vehicle_type_no_control/vtype.xml" /><tripinfo-output value="output_pimaddpg_control/pimaddpg_control_tripinfo_0.xml" /></input></configuration>
