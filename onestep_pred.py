@@ -104,7 +104,7 @@ class TrafficDetectorMerger:
 
         return merged_detectors
 
-    def update(self, loop_ids, duration):
+    def update(self, loop_ids, duration, speed_limit):
         """
         Updates the history container with the current state of the detectors after merging.
 
@@ -119,8 +119,9 @@ class TrafficDetectorMerger:
         merged_detectors = self.merge_detectors(detectors)
 
         # Create a temporary list to hold the state of all detectors
-        detector_state = np.zeros((12, 4))  # (12, 4) where each detector has 3 values + 1 duration
+        detector_state = np.zeros((12, 5))  # (12, 4) where each detector has 3 values + 2 duration
         duration = 1 - np.array(duration) / 60
+        speed_limit = np.array(speed_limit)
         # Loop over each detector and assign the corresponding duration value
         for i in range(12):
             # Get the flow, occupancy, and speed for this merged detector
@@ -128,9 +129,9 @@ class TrafficDetectorMerger:
 
             # Each detector should correspond to one of the four duration values (indexing is cyclic)
             duration_value = duration[i // 3]  # Cycle through the 4 duration values
-
+            speed_limit_value = speed_limit[i // 3]
             # Combine the flow, occupancy, speed with the corresponding duration value
-            detector_state[i] = [flow, occupancy, speed, duration_value]
+            detector_state[i] = [flow, occupancy, speed, duration_value, speed_limit_value]
 
         # Implementing sliding window behavior: store the latest data and move the window forward
         # Move the previous history down one step and add the new detector state at the end
@@ -234,17 +235,18 @@ class TrafficStatePred:
         params_filename = os.path.join(params_path, 'sumo_sim')  # 权重路径
         params_filename = os.path.join(parent_path, params_filename)
         self.net.load_state_dict(torch.load(params_filename, map_location=DEVICE))
-        self.buffer = torch.zeros((batch_size+1, num_of_vertices, num_for_predict+len_input, 4), dtype=torch.float32)
+        self.buffer = torch.zeros((batch_size+1, num_of_vertices, num_for_predict+len_input, 5), dtype=torch.float32)
         self.batch_size = batch_size
         self.count = -1
         self.optimizer = optim.Adam(self.net.parameters(), lr=learning_rate)
 
-    def update(self, history, duration):
+    def update(self, history, duration, speed_limit):
         self.net.train(False)
         with torch.no_grad():
             duration = 1 - np.array(duration) / 60
-            current_state = np.zeros([1, 12, 4])
-            current_state[0,:, -1] = np.repeat(duration, 3)
+            current_state = np.zeros([1, 12, 5])
+            current_state[0, :, -2] = np.repeat(duration, 3)
+            current_state[0, :, -1] = np.repeat(speed_limit, 3)
             inputs = np.concatenate([history, current_state], axis=0)
             inputs = torch.tensor(inputs, dtype=torch.float32).permute(1, 0, 2).unsqueeze(0)
             outputs, fd_q = self.net(inputs)
